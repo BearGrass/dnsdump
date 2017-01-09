@@ -1,7 +1,9 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
-
+/*
+ * test
+ */
 int main() {
     char *week[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
     time_t timestamp;
