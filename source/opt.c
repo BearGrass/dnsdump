@@ -4,6 +4,11 @@
 
 #include "opt.h"
 #include "util.h"
+#include "dnsdump.h"
+
+extern char *device;
+extern Filter fl;
+
 
 void usage(void) {
     printf("DNSDump is a tool based on libpcap, which dump DNS packages "
@@ -16,7 +21,7 @@ void usage(void) {
 }
 
 int parse_opt(int argc, char *argv[]) {
-    int ret;
+    int ret, L;
     while ((ret = getopt_long(argc, argv, short_options, long_options,
                     NULL)) != ERROR) {
         switch (ret) {
@@ -24,7 +29,10 @@ int parse_opt(int argc, char *argv[]) {
                 usage();
                 break;
             case 'i':
-                strcpy(device, optarg);
+                device = strdup(optarg);
+                break;
+            case 'p':
+                fl.port = atoi(optarg);
                 break;
             default:
                 usage();

@@ -4,11 +4,11 @@
 #include <getopt.h>
 #include <stdio.h>
 
-extern char *device;
-
-static const char short_options[] = "hi:";
+static const char short_options[] = "hi:p:";
 static const struct option long_options[] = {
     {"help", 0, NULL, 'h'},
+    {"interface", 0, NULL, 'i'},
+    {"port", 0, NULL, 'p'},
 };
 
 void usage(void);

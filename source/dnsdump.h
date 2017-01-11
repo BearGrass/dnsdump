@@ -13,6 +13,11 @@ typedef struct string_t {
     char *str;
 }String;
 
+typedef struct filter_t {
+    int port;
+    char *dname;
+}Filter;
+
 typedef struct pacinfo_t {
     time_t ts;
     /* The range of ip is (0, 65535) */
