@@ -8,6 +8,11 @@
  * email: superlong100@gmail.com
  */
 
+#define PCAP_SNAPLEN 65535
+
+typedef int (printer) (const char *,...);
+typedef int (datalink) (const u_char *pkt, int len);
+
 typedef struct string_t {
     int len;
     char *str;
@@ -31,5 +36,13 @@ typedef struct pacinfo_t {
     /* length of package */
     int paclen;
 }Pacinfo;
+
+static void
+handle_pcap(u_char * udata, const struct pcap_pkthdr *hdr, const u_char * pkt);
+
+static int
+handle_eth(const u_char *pkt, int len);
+
+static void show(void);
 
 #endif
