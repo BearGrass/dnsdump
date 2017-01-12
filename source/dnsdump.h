@@ -2,6 +2,7 @@
 #define __DNSDUMP_H__
 
 #include <stdint.h>
+#include <pcap.h>
 
 /*
  * Create at 19:07 1.9 2017 BearGrass
@@ -37,12 +38,12 @@ typedef struct pacinfo_t {
     int paclen;
 }Pacinfo;
 
-static void
+void
 handle_pcap(u_char * udata, const struct pcap_pkthdr *hdr, const u_char * pkt);
 
-static int
+int
 handle_eth(const u_char *pkt, int len);
 
-static void show(void);
+void show(void);
 
 #endif

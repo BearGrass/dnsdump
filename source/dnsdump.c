@@ -30,8 +30,8 @@ static printer *pr_func = (printer *) printf;
 static datalink *handle_datalink = NULL;
 static char bpf_program_buf[] = "udp port 53";
 
-static void
-handle_pcap(u_char * udata, const struct pcap_pkthdr *hdr, const u_char * pkt) {
+void handle_pcap(u_char * udata, const struct pcap_pkthdr *hdr,
+        const u_char * pkt) {
     /* judge the length of ETH header */
     if (hdr->caplen < ETHER_HDR_LEN)
         return;
@@ -41,8 +41,11 @@ handle_pcap(u_char * udata, const struct pcap_pkthdr *hdr, const u_char * pkt) {
 //    last_ts = hdr->ts;
 }
 
-static int
-handle_eth(const u_char *pkt, int len) {
+int handle_eth(const u_char *pkt, int len) {
+    return 0;
+}
+
+void show(void) {
 }
 
 int main(int argc, char *argv[]) {
