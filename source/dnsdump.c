@@ -4,6 +4,9 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <netinet/if_ether.h>
+#include <netinet/ip.h>
+#include <netinet/udp.h>
+#include <arpa/inet.h>
 
 #include "dnsdump.h"
 #include "init.h"
@@ -42,7 +45,66 @@ void handle_pcap(u_char * udata, const struct pcap_pkthdr *hdr,
 }
 
 int handle_eth(const u_char *pkt, int len) {
+    struct ether_header *eth_hdr = (void *)pkt;
+    unsigned short eth_type = ntohs(eth_hdr->ether_type);
+    if (len < ETHER_HDR_LEN) {
+        return 0;
+    }
+    pkt += ETHER_HDR_LEN;
+    len -= ETHER_HDR_LEN;
+    /* VLAN environment */
+    if ( eth_type = ETHERTYPE_8021Q) {
+        eth_type = ntohs(*(unsigned short *)(pkt + 2));
+        pkt += 4;
+        len -= 4;
+    }
+    return handle_ip(pkt, len, eth_type);
+}
+
+int handle_ip(const u_char *pkt, int len, unsigned short type) {
+    if (type == ETHERTYPE_IP) {
+        /* ETHERTYPE_IP in <netinet/if_ether.h> */
+        return handle_ipv4((struct ip*)pkt, len);
+    }
+    /* TODO: ipv6 */
     return 0;
+}
+
+int handle_ipv4(const struct ip *iph, int len) {
+    struct in_addr sip;
+    struct in_addr dip;
+    /* ip_hl store the length of the IP header in 32 bit words(4 bytes). */
+    int offset = iph->ip_hl << 2;
+    if (offset < 20) {
+        /*
+         * The minimum value of a correct header is 5
+         * which don't have any options.
+         */
+        return 0;
+    }
+    memcpy(&sip, &iph->ip_src, sizeof(struct in_addr));
+    memcpy(&dip, &iph->ip_dst, sizeof(struct in_addr));
+    if (iph->ip_p != IPPROTO_UDP) {
+        return 0;
+    }
+    return handle_udp((struct udphdr*)iph + offset, len - offset, &sip, &dip);
+}
+
+int handle_udp(const struct udphdr* uh, int len,
+        struct in_addr *sip,
+        struct in_addr *dip) {
+    int off = sizeof(uh);
+    if (uh->uh_dport != ntohl(53)) {
+        return 0;
+    }
+    return handle_dns((char*)uh + off, len - off, sip, dip);
+}
+
+
+int handle_dns(const char *dnshdr, int len,
+        struct in_addr *sip,
+        struct in_addr *dip) {
+
 }
 
 void show(void) {
