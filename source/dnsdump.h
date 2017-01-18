@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <pcap.h>
 #include <netinet/ip.h>
+#include <netinet/udp.h>
 
 /*
  * Create at 19:07 1.9 2017 BearGrass
@@ -77,7 +78,7 @@ int handle_ip(const u_char *pkt, int len, unsigned short type);
 int handle_ipv4(const struct ip *iph, int len);
 int handle_udp(const struct udphdr* uh, int len,
         struct in_addr *sip, struct in_addr *dip);
-int handle_dns(const char *dnshdr, int len,
+int handle_dns(const char *buf, int len,
         struct in_addr *sip, struct in_addr *dip);
 
 void show(void);

@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 
 #include "dnsdump.h"
+#include "protocal.h"
 #include "init.h"
 #include "opt.h"
 #include "util.h"
@@ -101,10 +102,36 @@ int handle_udp(const struct udphdr* uh, int len,
 }
 
 
-int handle_dns(const char *dnshdr, int len,
+int handle_dns(const char *buf, int len,
         struct in_addr *sip,
         struct in_addr *dip) {
+    dnshdr_t dnshdr;
+    uint16_t tmp;
+    memcpy(&tmp, buf, 2);
+    dnshdr.id = ntohs(tmp);
+    memcpy(&tmp, buf+2, 2);
+    tmp = ntohs(tmp);
 
+    dnshdr.qr = (tmp>>15)&0x01;
+    dnshdr.opcode = (tmp>>11)&0x0F;
+    dnshdr.aa = (tmp>>10)&0x01;
+    dnshdr.tc = (tmp>>9)&0x01;
+    dnshdr.rd = (tmp>>8)&0x01;
+    dnshdr.ra = (tmp>>7)&0x01;
+    dnshdr.rcode = tmp&0x0F;
+
+    memcpy(&tmp, buf+4, 2);
+    dnshdr.qdcount = ntohs(tmp);
+
+    memcpy(&tmp, buf+6, 2);
+    dnshdr.ancount = ntohs(tmp);
+
+    memcpy(&tmp, buf+8, 2);
+    dnshdr.nscount = ntohs(tmp);
+
+    memcpy(&tmp, buf+10, 2);
+    dnshdr.arcount = ntohs(tmp);
+    return 0;
 }
 
 void show(void) {
