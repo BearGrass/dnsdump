@@ -80,6 +80,8 @@ int handle_udp(const struct udphdr* uh, int len,
         struct in_addr *sip, struct in_addr *dip);
 int handle_dns(const char *buf, int len,
         struct in_addr *sip, struct in_addr *dip);
+int get_domain(const char *buf, int *offset, int count,
+        char domain[], int *len);
 
 void show(void);
 

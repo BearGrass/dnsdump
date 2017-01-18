@@ -16,6 +16,11 @@
 #define Not_Auth 0x09
 #define Not_Zone 0x10
 
+typedef struct _string {
+    int len;
+    char *str;
+} string;
+
 typedef struct _dnshdr {
     uint16_t id;
     uint16_t qr:1;
@@ -33,5 +38,11 @@ typedef struct _dnshdr {
     uint16_t nscount;
     uint16_t arcount;
 } dnshdr_t;
+
+typedef struct _dnsquery {
+    string domain;
+    uint16_t qtype;
+    uint16_t qclass;
+} dnsquery;
 
 #endif

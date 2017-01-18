@@ -101,12 +101,15 @@ int handle_udp(const struct udphdr* uh, int len,
     return handle_dns((char*)uh + off, len - off, sip, dip);
 }
 
-
 int handle_dns(const char *buf, int len,
         struct in_addr *sip,
         struct in_addr *dip) {
     dnshdr_t dnshdr;
+    const char *pos = buf;
     uint16_t tmp;
+    char query[256];
+    int offset, query_len;
+    int ret;
     memcpy(&tmp, buf, 2);
     dnshdr.id = ntohs(tmp);
     memcpy(&tmp, buf+2, 2);
@@ -131,6 +134,24 @@ int handle_dns(const char *buf, int len,
 
     memcpy(&tmp, buf+10, 2);
     dnshdr.arcount = ntohs(tmp);
+
+    pos += 12;
+    ret = get_domain(pos, &offset, dnshdr.qdcount, query, &query_len);
+
+    return 0;
+}
+
+int get_domain(const char *buf, int *offset, int count, char domain[], int *len) {
+    const char *p = buf;
+    int i;
+    dnsquery *qr;
+    qr = (dnsquery*)malloc(sizeof(dnsquery)*count);
+    if (qr == NULL) {
+        fprintf(stderr, "alloc memory of query error:%s\n", errbuf);
+        return -1;
+    }
+    for (i = 0; i < count; i ++) {
+    }
     return 0;
 }
 
