@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <time.h>
 #include <pcap.h>
 #include <string.h>
 
@@ -15,6 +16,18 @@ static int init_filter(Filter fl) {
     fl.dname = NULL;
     fl.port = 53;
     return SUCCESS;
+}
+
+void init_pac(Pacinfo pac) {
+    // TODO: ts initialize to current time
+    pac.ts = 0;
+    memset(pac.sip, 0, 4);
+    memset(pac.dip, 0, 4);
+    pac.sport = 0;
+    pac.dport = 0;
+    pac.dname.len = 0;
+    pac.dname.str = NULL;
+    pac.paclen = 0;
 }
 
 int init(void) {

@@ -58,9 +58,8 @@ typedef struct filter_t {
 
 typedef struct pacinfo_t {
     time_t ts;
-    /* The range of ip is (0, 65535) */
-    uint32_t sip;
-    uint32_t dip;
+    char sip[4];
+    char dip[4];
     /* The range of port is (0, 65535) */
     uint32_t sport;
     uint32_t dport;
@@ -80,8 +79,9 @@ int handle_udp(const struct udphdr* uh, int len,
         struct in_addr *sip, struct in_addr *dip);
 int handle_dns(const char *buf, int len,
         struct in_addr *sip, struct in_addr *dip);
-int get_domain(const char *buf, int *offset, int count,
+int get_domain(const char *buf, const char *pos, int *offset,
         char domain[], int *len);
+void get_ip(char ip[], struct in_addr nip);
 
 void show(void);
 
