@@ -35,6 +35,7 @@ static printer *pr_func = (printer *) printf;
 static datalink *handle_datalink = NULL;
 static char bpf_program_buf[] = "udp port 53";
 static Pacinfo pac;
+static int datalink_type;
 
 void get_ip(char ip[], struct in_addr nip) {
     uint32_t ipip = ntohl(nip.s_addr);
@@ -44,7 +45,6 @@ void get_ip(char ip[], struct in_addr nip) {
 void handle_pcap(u_char * udata, const struct pcap_pkthdr *hdr,
         const u_char * pkt) {
     /* judge the length of ETH header */
-    printf("start\n");
     if (hdr->caplen < ETHER_HDR_LEN)
         return;
     if (handle_datalink(pkt, hdr->caplen) == 0) {
@@ -56,14 +56,21 @@ void handle_pcap(u_char * udata, const struct pcap_pkthdr *hdr,
 int handle_eth(const u_char *pkt, int len) {
     struct ether_header *eth_hdr = (void *)pkt;
     unsigned short eth_type = ntohs(eth_hdr->ether_type);
-    printf("eth\n");
     if (len < ETHER_HDR_LEN) {
         return 0;
     }
     pkt += ETHER_HDR_LEN;
     len -= ETHER_HDR_LEN;
-    /* VLAN environment */
-    if ( eth_type = ETHERTYPE_8021Q) {
+    if (datalink_type == DLT_LINUX_SLL) {
+        /* Skip the extra 2 byte field inserted in "Linux Cooked" captures.
+         * if dev is any datalink will have 2 bytes.
+         * if use eth0 or other, datalink will not.
+         */
+        eth_type = ntohs(*(unsigned short*)(pkt));
+        pkt += 2;
+        len -= 2;
+    }else if ( eth_type = ETHERTYPE_8021Q) {
+        /* VLAN environment */
         eth_type = ntohs(*(unsigned short *)(pkt + 2));
         pkt += 4;
         len -= 4;
@@ -72,7 +79,6 @@ int handle_eth(const u_char *pkt, int len) {
 }
 
 int handle_ip(const u_char *pkt, int len, unsigned short type) {
-    printf("ip\n");
     if (type == ETHERTYPE_IP) {
         /* ETHERTYPE_IP in <netinet/if_ether.h> */
         return handle_ipv4((struct ip*)pkt, len);
@@ -86,7 +92,6 @@ int handle_ipv4(const struct ip *iph, int len) {
     struct in_addr dip;
     /* ip_hl store the length of the IP header in 32 bit words(4 bytes). */
     int offset = iph->ip_hl << 2;
-    printf("ipv4\n");
     if (offset < 20) {
         /*
          * The minimum value of a correct header is 5
@@ -101,17 +106,16 @@ int handle_ipv4(const struct ip *iph, int len) {
     if (iph->ip_p != IPPROTO_UDP) {
         return 0;
     }
-    return handle_udp((struct udphdr*)iph + offset, len - offset, &sip, &dip);
+    return handle_udp((struct udphdr*)((char *)iph + offset), len - offset, &sip, &dip);
 }
 
 int handle_udp(const struct udphdr* uh, int len,
         struct in_addr *sip,
         struct in_addr *dip) {
     int off = sizeof(uh);
-    if (uh->uh_dport != ntohl(53)) {
+    if (uh->uh_dport != ntohs(53)) {
         return 0;
     }
-    printf("udp\n");
     return handle_dns((char*)uh + off, len - off, sip, dip);
 }
 
@@ -236,14 +240,13 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     ret = pcap_compile(pcap, &fp, bpf_program_buf, 1, 0);
-    printf("compile %d\n", ret);
     ret = pcap_setfilter(pcap, &fp);
-    printf("setfilter %d\n", ret);
 
     ret = pcap_datalink(pcap);
     switch (ret) {
         case DLT_EN10MB:
         case DLT_LINUX_SLL:
+            datalink_type = ret;
             handle_datalink = handle_eth;
             break;
         default:
@@ -255,7 +258,7 @@ int main(int argc, char *argv[]) {
         init_pac(pac);
         pcap_dispatch(pcap, 1, handle_pcap, NULL);
         if (pac.paclen)
-        printf("%c.%c.%c.%c.\n", pac.sip[0]&0xff, pac.sip[1]&0xff, pac.sip[2]&0xff, pac.sip[3]&0xff);
+        //printf("%c.%c.%c.%c.\n", pac.sip[0]&0xff, pac.sip[1]&0xff, pac.sip[2]&0xff, pac.sip[3]&0xff);
         show();
         //break;
     }
