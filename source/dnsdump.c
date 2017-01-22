@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <ctype.h>
 #include <pcap.h>
 #include <string.h>
-#include <ctype.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <netinet/if_ether.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
@@ -35,11 +38,9 @@ static printer *pr_func = (printer *) printf;
 static datalink *handle_datalink = NULL;
 static char bpf_program_buf[] = "udp port 53";
 static Pacinfo pac;
-static int datalink_type;
 
 void get_ip(char ip[], struct in_addr nip) {
-    uint32_t ipip = ntohl(nip.s_addr);
-    memcpy(ip, &ipip, 4);
+    strcpy(ip, inet_ntoa(nip));
 }
 
 void handle_pcap(u_char * udata, const struct pcap_pkthdr *hdr,
@@ -50,7 +51,23 @@ void handle_pcap(u_char * udata, const struct pcap_pkthdr *hdr,
     if (handle_datalink(pkt, hdr->caplen) == 0) {
         return;
     }
+    time(&pac.ts);
 //    last_ts = hdr->ts;
+}
+
+int handle_linux_sll(const u_char *pkt, int len) {
+    /* Skip the extra 2 byte field inserted in "Linux Cooked" captures.
+     * if dev is any datalink will have 2 bytes.
+     * if use eth0 or other, datalink will not.
+     */
+    sll_header_t *sllhdr = (void*)pkt;
+    unsigned short eth_type = ntohs(sllhdr->proto_type);
+    if (len < SLL_HDR_LEN) {
+        return 0;
+    }
+    pkt += SLL_HDR_LEN;
+    len -= SLL_HDR_LEN;
+    handle_ip(pkt, len, eth_type);
 }
 
 int handle_eth(const u_char *pkt, int len) {
@@ -61,15 +78,7 @@ int handle_eth(const u_char *pkt, int len) {
     }
     pkt += ETHER_HDR_LEN;
     len -= ETHER_HDR_LEN;
-    if (datalink_type == DLT_LINUX_SLL) {
-        /* Skip the extra 2 byte field inserted in "Linux Cooked" captures.
-         * if dev is any datalink will have 2 bytes.
-         * if use eth0 or other, datalink will not.
-         */
-        eth_type = ntohs(*(unsigned short*)(pkt));
-        pkt += 2;
-        len -= 2;
-    }else if ( eth_type = ETHERTYPE_8021Q) {
+    if ( eth_type = ETHERTYPE_8021Q) {
         /* VLAN environment */
         eth_type = ntohs(*(unsigned short *)(pkt + 2));
         pkt += 4;
@@ -101,8 +110,6 @@ int handle_ipv4(const struct ip *iph, int len) {
     }
     memcpy(&sip, &iph->ip_src, sizeof(struct in_addr));
     memcpy(&dip, &iph->ip_dst, sizeof(struct in_addr));
-    get_ip(pac.sip, sip);
-    get_ip(pac.dip, dip);
     if (iph->ip_p != IPPROTO_UDP) {
         return 0;
     }
@@ -123,7 +130,8 @@ int handle_dns(const char *buf, int len,
         struct in_addr *sip,
         struct in_addr *dip) {
     dnshdr_t dnshdr;
-    const char *pos = buf;
+    const char *dnspos = buf;
+    dnsquery_t qr;
     uint16_t tmp;
     char query[256];
     int offset, query_len;
@@ -145,7 +153,7 @@ int handle_dns(const char *buf, int len,
     memcpy(&tmp, buf+4, 2);
     dnshdr.qdcount = ntohs(tmp);
     if (dnshdr.qdcount != 1) {
-        printf("Not support multiple query\n");
+        pr_func("Not support multiple query\n");
         return -1;
     }
 
@@ -158,10 +166,22 @@ int handle_dns(const char *buf, int len,
     memcpy(&tmp, buf+10, 2);
     dnshdr.arcount = ntohs(tmp);
 
-    pos += 12;
-    ret = get_domain(buf, pos, &offset, query, &query_len);
-    pos += offset;
+    dnspos += 12;
+    ret = get_domain(buf, dnspos, &offset, query, &query_len);
+    dnspos += offset;
+    qr.domain.str = query;
+    qr.domain.len = query_len;
+    memcpy(&qr.qtype, dnspos, 2);
+    memcpy(&qr.qclass, dnspos + 2, 2);
+    dnspos += 4;
 
+    get_ip(pac.sip, *sip);
+    get_ip(pac.dip, *dip);
+    pac.dname.str = (char*)malloc(query_len);
+    pac.dname.len = query_len;
+    memcpy(pac.dname.str , query, query_len);
+    pac.paclen = 1;
+    show();
     return 0;
 }
 
@@ -174,23 +194,22 @@ int get_domain(const char *buf, const char *pos, int *offset, char domain[], int
     char pdomain[256]; // domain indicated by program, maybe need
     char data;
     int plen, i, end = 0;
-    dnsquery qr;
     *offset = 0;
     *len = plen = 0;
+//    for (i = 0; i < 20; i ++) {
+//        printf("%02x ", p[i]);
+//    }
+//    puts("");
     while (p != NULL && *p != 0) {
         data = *p;
         if (is_pointer(data)) {
             p = buf + *(p+1) + ((data & 0x3f) << 8);
             end = (end == 0)?*offset + 2:end;  // 0x0cc0 2 bytes
         } else {
-            if (!isalnum(data) || data != '-') {
-            // the data is illegal
-                return -1;
-            }
             pdomain[plen ++] = data;
-            for (i = 0; i < data; i ++) {
-                p ++;
-                if (p == NULL) {
+            p ++;
+            for (i = 0; i < data; i ++, p ++) {
+                if (p == NULL || (!isalnum(*p) && *p != '-')) {
                     // the datagram is illegal,maybe short? ^ ^
                     return -1;
                 }
@@ -207,6 +226,14 @@ int get_domain(const char *buf, const char *pos, int *offset, char domain[], int
 }
 
 void show(void) {
+    struct tm *tp;
+    tp = localtime(&pac.ts);
+    printf("%02d-%02d-%d ",
+            (1 + tp->tm_mon), tp->tm_mday, (1900 + tp->tm_year));
+    printf("%02d:%02d:%02d ",
+            tp->tm_hour, tp->tm_min, tp->tm_sec);
+    pr_func("%s -> %s %s\n",pac.sip, pac.dip,pac.dname.str);
+    init_pac(pac);
 }
 
 int main(int argc, char *argv[]) {
@@ -245,23 +272,18 @@ int main(int argc, char *argv[]) {
     ret = pcap_datalink(pcap);
     switch (ret) {
         case DLT_EN10MB:
-        case DLT_LINUX_SLL:
-            datalink_type = ret;
             handle_datalink = handle_eth;
+            break;
+        case DLT_LINUX_SLL:
+            handle_datalink = handle_linux_sll;
             break;
         default:
             fprintf(stderr, "unsupported data link type %d\n", ret);
             exit(1);
             break;
     }
-    while (1) {
-        init_pac(pac);
-        pcap_dispatch(pcap, 1, handle_pcap, NULL);
-        if (pac.paclen)
-        //printf("%c.%c.%c.%c.\n", pac.sip[0]&0xff, pac.sip[1]&0xff, pac.sip[2]&0xff, pac.sip[3]&0xff);
-        show();
-        //break;
-    }
+    init_pac(pac);
+    pcap_loop(pcap, -1, handle_pcap, NULL);
 
     return 0;
 }

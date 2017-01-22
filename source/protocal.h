@@ -16,10 +16,20 @@
 #define Not_Auth 0x09
 #define Not_Zone 0x10
 
+#define SLL_HDR_LEN 16
+
 typedef struct _string {
     int len;
     char *str;
 } string;
+
+typedef struct _sll_header {
+    uint16_t pkt_type;
+    uint16_t dev_type;
+    uint16_t addr_len;
+    uint8_t addr[8];
+    uint16_t proto_type;
+} sll_header_t;
 
 typedef struct _dnshdr {
     uint16_t id;
@@ -43,6 +53,6 @@ typedef struct _dnsquery {
     string domain;
     uint16_t qtype;
     uint16_t qclass;
-} dnsquery;
+} dnsquery_t;
 
 #endif
