@@ -58,8 +58,8 @@ typedef struct filter_t {
 
 typedef struct pacinfo_t {
     time_t ts;
-    char sip[4];
-    char dip[4];
+    char sip[16];
+    char dip[16];
     /* The range of port is (0, 65535) */
     uint32_t sport;
     uint32_t dport;
