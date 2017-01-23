@@ -51,7 +51,6 @@ void handle_pcap(u_char * udata, const struct pcap_pkthdr *hdr,
     if (handle_datalink(pkt, hdr->caplen) == 0) {
         return;
     }
-    time(&pac.ts);
 //    last_ts = hdr->ts;
 }
 
@@ -227,6 +226,7 @@ int get_domain(const char *buf, const char *pos, int *offset, char domain[], int
 
 void show(void) {
     struct tm *tp;
+    time(&pac.ts);
     tp = localtime(&pac.ts);
     printf("%02d-%02d-%d ",
             (1 + tp->tm_mon), tp->tm_mday, (1900 + tp->tm_year));
