@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <pcap.h>
 #include <string.h>
+#include <getopt.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -15,7 +16,6 @@
 #include "dnsdump.h"
 #include "protocal.h"
 #include "init.h"
-#include "opt.h"
 #include "util.h"
 
 
@@ -38,6 +38,49 @@ static printer *pr_func = (printer *) printf;
 static datalink *handle_datalink = NULL;
 static char bpf_program_buf[] = "udp port 53";
 static Pacinfo pac;
+
+static const char short_options[] = "hi:p:";
+static const struct option long_options[] = {
+    {"help", 0, NULL, 'h'},
+    {"interface", 0, NULL, 'i'},
+    {"port", 0, NULL, 'p'},
+};
+
+void usage(void) {
+    printf("DNSDump is a tool based on libpcap, which dump DNS packages "
+            "with users filter.\n"
+            "Usage: dnsdump <command> [options] \n\n"
+            "Options:\n"
+            "    -i --device    set the device to be sniffed\n"
+            "    -h --help      display the help messages\n"
+            "    domain    only show the domain query\n"
+            "\n"
+            "Commands:\n"
+            "    domain    only show the domain query\n"
+            );
+}
+
+int parse_opt(int argc, char *argv[]) {
+    int ret;
+    while ((ret = getopt_long(argc, argv, short_options, long_options,
+                    NULL)) != ERROR) {
+        switch (ret) {
+            case 'h':
+                usage();
+                break;
+            case 'i':
+                device = strdup(optarg);
+                break;
+            case 'p':
+                fl.port = atoi(optarg);
+                break;
+            default:
+                usage();
+                return ERROR;
+        }
+    }
+    return SUCCESS;
+}
 
 void get_ip(char ip[], struct in_addr nip) {
     strcpy(ip, inet_ntoa(nip));
@@ -66,7 +109,7 @@ int handle_linux_sll(const u_char *pkt, int len) {
     }
     pkt += SLL_HDR_LEN;
     len -= SLL_HDR_LEN;
-    handle_ip(pkt, len, eth_type);
+    return handle_ip(pkt, len, eth_type);
 }
 
 int handle_eth(const u_char *pkt, int len) {
@@ -77,7 +120,7 @@ int handle_eth(const u_char *pkt, int len) {
     }
     pkt += ETHER_HDR_LEN;
     len -= ETHER_HDR_LEN;
-    if ( eth_type = ETHERTYPE_8021Q) {
+    if ( eth_type == ETHERTYPE_8021Q) {
         /* VLAN environment */
         eth_type = ntohs(*(unsigned short *)(pkt + 2));
         pkt += 4;
@@ -180,10 +223,18 @@ int handle_dns(const char *buf, int len,
     pac.dname.len = query_len;
     memcpy(pac.dname.str , query, query_len);
     pac.paclen = 1;
+    if (!check_filter(pac, fl)) {
+        return 0;
+    }
     show();
     return 0;
 }
 
+inline int check_filter(Pacinfo pac, Filter fl) {
+    if (fl.dname == NULL ) return 1;
+    if (!strcmp(pac.dname.str, fl.dname)) return 1;
+    return 0;
+}
 inline int is_pointer(char x) {
     return ((x & 0xc0) == 0xc0);
 }
@@ -195,10 +246,6 @@ int get_domain(const char *buf, const char *pos, int *offset, char domain[], int
     int plen, i, end = 0;
     *offset = 0;
     *len = plen = 0;
-//    for (i = 0; i < 20; i ++) {
-//        printf("%02x ", p[i]);
-//    }
-//    puts("");
     while (p != NULL && *p != 0) {
         data = *p;
         if (is_pointer(data)) {
@@ -236,6 +283,22 @@ void show(void) {
     init_pac(pac);
 }
 
+int domain_fix(char *name) {
+    int L = strlen(name);
+    int i, end = L - 1;
+    if (L > 255) return -1;
+    for (i = 0; i < L; i ++) {
+        if (!isalnum(name[i]) && name[i] != '-' && name[i] != '.') {
+            return -1;
+        }
+    }
+    while (name[end] == ' ') end --;
+    name[end+1] = '.';
+    name[end+2] = 0;
+    return 0;
+
+}
+
 int main(int argc, char *argv[]) {
     struct stat st;
     int promisc_flag = 1; // start promiscuous mode
@@ -250,6 +313,11 @@ int main(int argc, char *argv[]) {
 
     if (argc > 0) {
         fl.dname = strdup(argv[0]);
+        ret = domain_fix(fl.dname);
+        if (ret == -1) {
+            pr_func("domain is illegal!\n");
+            exit(1);
+        }
     }
     if (device == NULL) {
         device = strdup("any");

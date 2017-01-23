@@ -81,8 +81,9 @@ int handle_dns(const char *buf, int len,
         struct in_addr *sip, struct in_addr *dip);
 int get_domain(const char *buf, const char *pos, int *offset,
         char domain[], int *len);
+int check_filter(Pacinfo pac, Filter fl);
+int domain_fix(char *name);
 void get_ip(char ip[], struct in_addr nip);
-
 void show(void);
 
 #endif
