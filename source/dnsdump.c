@@ -178,7 +178,7 @@ int handle_dns(const char *buf, int len,
     char query[256];
     int offset, query_len;
     int ret;
-    pac.paclen = 1;
+    /* parse dns header */
     memcpy(&tmp, buf, 2);
     dnshdr.id = ntohs(tmp);
     memcpy(&tmp, buf+2, 2);
@@ -208,6 +208,7 @@ int handle_dns(const char *buf, int len,
     memcpy(&tmp, buf+10, 2);
     dnshdr.arcount = ntohs(tmp);
 
+    /* parse query section */
     dnspos += 12;
     ret = get_domain(buf, dnspos, &offset, query, &query_len);
     dnspos += offset;
@@ -226,6 +227,7 @@ int handle_dns(const char *buf, int len,
     if (!check_filter(pac, fl)) {
         return 0;
     }
+    /* parse answer section */
     show();
     return 0;
 }
